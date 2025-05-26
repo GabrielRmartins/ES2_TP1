@@ -13,4 +13,4 @@ def test_point_parameters_initialization():
 def test_distance_calculation():
   a = Point(3,4)
   b = Point(6,8)
-  assert a.get_distance(b) == 5
+  assert a.calculate_distance(b) == 5
