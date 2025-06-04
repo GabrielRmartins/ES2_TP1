@@ -56,3 +56,7 @@ class TestMovie:
 
     def test_get_director(self,movie_sample_1):
         assert movie_sample_1.get_director() == 'Test author'
+
+    def test_get_movie_info(self,movie_sample_1):
+        expected_info = "Movie name: Movie 1 test name\nDescription: This is a test movie with no categories assigned\nCategories: \nRating: 2.5\nDirector: Test author"
+        assert movie_sample_1.get_movie_info() == expected_info
