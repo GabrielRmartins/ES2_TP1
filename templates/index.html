@@ -30,24 +30,22 @@
                     <li class="nav-item">
                         <a class="nav-link" href="#">FILMES</a>
                     </li>
-                    <li class="nav-item">
-                        <div class="rounded-pill bg-dark" style="width: 40px; height: 20px;"></div>
-                    </li>
                 </ul>
             </div>
         </div>
     </nav>
 
     <!-- Hero Section -->
-    <section class="container my-4">
-        <div class="position-relative rounded-4 overflow-hidden" style="height: 400px; background-image: url('{{ url_for('static', filename='img/hero.jpg') }}'); background-size: cover; background-position: center;">
-            <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark opacity-50"></div>
-            <div class="position-relative z-1 text-white text-center d-flex flex-column justify-content-center align-items-center h-100">
-                <h1 class="mb-4 fs-2">Registre os seus filmes favoritos.</h1>
-                <a href="#" class="btn btn-primary fw-bold">comece agora</a>
-            </div>
+<section class="container my-4">
+    <div class="position-relative rounded-4 overflow-hidden"
+         style="height: 400px; background-image: url('../static/img/hero.png'); background-size: cover; background-position: center;">
+        <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark opacity-50"></div>
+        <div class="position-relative z-1 text-white text-center d-flex flex-column justify-content-center align-items-center h-100">
+            <h1 class="mb-4 fs-2">Registre os seus filmes favoritos.</h1>
+            <a href="#" class="btn btn-primary fw-bold">comece agora</a>
         </div>
-    </section>
+    </div>
+</section>
 
     <!-- Cards de Filmes -->
     <section class="container my-5">
