@@ -1,154 +1,112 @@
-from src.movie import Movie
+from movie import Movie
 import sqlite3
-import json
+import os
 
 class DatabaseManager:
 
-    def __init__(self, db_name='src/data/movies.db'):
-        self.connection = sqlite3.connect(db_name)
+    def __init__(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(base_dir, 'data/movies.db')
+        self.connection = sqlite3.connect(db_path)
         self.cursor = self.connection.cursor()
-        self.create_movie_table()
-        self.create_movie_category_table()
-        
-    def create_movie_table(self):
-        query = '''
+        self.create_tables()
+
+    def create_tables(self):
+        self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS movies (
                 name TEXT PRIMARY KEY,
                 description TEXT,
                 director TEXT
             )
-        '''
-        self.cursor.execute(query)
-        self.connection.commit()
+        ''')
 
-
-    def create_movie_category_table(self):
-        query = '''
+        self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS movie_categories (
                 movie_name TEXT,
                 category_name TEXT,
-                FOREIGN KEY (movie_name) REFERENCES movies(name),
-                FOREIGN KEY (category_name) REFERENCES categories(name)
+                FOREIGN KEY (movie_name) REFERENCES movies(name)
             )
-        '''
-        self.cursor.execute(query)
+        ''')
+
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ratings (
+                movie_name TEXT PRIMARY KEY,
+                rating REAL,
+                FOREIGN KEY (movie_name) REFERENCES movies(name)
+            )
+        ''')
+
         self.connection.commit()
 
-    def create_user_table(self, user:str):
-        query = f'''
-        CREATE TABLE IF NOT EXISTS "{user}" (
-            name TEXT PRIMARY KEY,
-            rating REAL,
-            FOREIGN KEY (name) REFERENCES movies(name)
-        )
-        '''
-        self.cursor.execute(query)
-        self.connection.commit()
-
-    def add_new_movie_to_db(self, movie: Movie):
-        query_parameters = (movie.get_name(), movie.get_description(), movie.get_director())
-        query = '''
+    def add_movie(self, movie: Movie):
+        self.cursor.execute('''
             INSERT OR IGNORE INTO movies (name, description, director)
             VALUES (?, ?, ?)
-        '''
-        self.cursor.execute(query, query_parameters)
-        self.connection.commit()
+        ''', (movie.get_name(), movie.get_description(), movie.get_director()))
 
         for category in movie.get_categories():
-            self.add_movie_category(movie.get_name(), category)
+            self.cursor.execute('''
+                INSERT OR IGNORE INTO movie_categories (movie_name, category_name)
+                VALUES (?, ?)
+            ''', (movie.get_name(), category))
 
-
-
-    def add_movie_category(self, movie_name: str, category_name: str):
-        query = '''
-            INSERT OR IGNORE INTO movie_categories (movie_name, category_name)
+        self.cursor.execute('''
+            INSERT OR REPLACE INTO ratings (movie_name, rating)
             VALUES (?, ?)
-        '''
-        self.cursor.execute(query, (movie_name, category_name))
+        ''', (movie.get_name(), movie.get_rating()))
+
         self.connection.commit()
 
-    def add_movie_to_user_table(self, user:str, movie: Movie):
-        self.add_new_movie_to_db(movie)
-        self.create_user_table(user)
-        query_parameters = (movie.get_name(), movie.get_rating())
-        query = f'''
-            INSERT OR IGNORE INTO {user} (name, rating)
-            VALUES (?, ?)
-            '''
-        self.cursor.execute(query, query_parameters)
-        self.connection.commit()
-
-    def get_user_movies_names(self, user:str):
-        query = f'SELECT name FROM {user}'
-        self.cursor.execute(query)
-        user_movies = self.cursor.fetchall()
-        return [movie[0] for movie in user_movies]
-    
-    def get_movie_description(self, movie_name:str):
-        query = '''
-            SELECT description FROM movies WHERE name = ?
-        '''
-        self.cursor.execute(query, (movie_name,))
-        result = self.cursor.fetchone()
-        return result[0] if result else None
-    
-    def get_movie_director(self, movie_name:str):
-        query = '''
-            SELECT director FROM movies WHERE name = ?
-        '''
-        self.cursor.execute(query, (movie_name,))
-        result = self.cursor.fetchone()
-        return result[0] if result else None
-    
-    def get_user_movies_ratings(self, user:str, movie_name:str):
-        query = f'''
-            SELECT rating FROM {user} WHERE name = ?
-        '''
-        self.cursor.execute(query, (movie_name,))
-        result = self.cursor.fetchone()
-        return result[0] if result else None
-    
-    def get_movie_categories(self, movie_name:str):
-        query = '''
-            SELECT category_name FROM movie_categories WHERE movie_name = ?
-        '''
-        self.cursor.execute(query, (movie_name,))
-        categories = self.cursor.fetchall()
-        return [category[0] for category in categories]
-
-    def get_all_user_table_movies(self,user:str):
+    def get_all_movies_with_ratings(self):
+        self.cursor.execute('''
+            SELECT m.name, m.description, m.director, r.rating
+            FROM movies m
+            JOIN ratings r ON m.name = r.movie_name
+        ''')
+        rows = self.cursor.fetchall()
         movies = []
-        movie_names = self.get_user_movies_names(user)
-        for movie_name in movie_names:
-            rating = self.get_user_movies_ratings(user, movie_name)
-            description = self.get_movie_description(movie_name)
-            director = self.get_movie_director(movie_name)
-            categories = self.get_movie_categories(movie_name)
-            movies.append(Movie(movie_name, description, categories, rating, director))
+        for row in rows:
+            name, description, director, rating = row
+            self.cursor.execute('SELECT category_name FROM movie_categories WHERE movie_name = ?', (name,))
+            categories = [r[0] for r in self.cursor.fetchall()]
+            movies.append(Movie(name, description, categories, rating, director))
         return movies
-    
-    def update_movie_rating(self, user:str, movie_name:str, new_rating: float):
-        
-        query_parameters = (movie_name,new_rating,movie_name)
-        query = f'''
-            UPDATE {user} 
-            SET name = ?, rating = ?
-            WHERE name = ?
-        '''
-        self.cursor.execute(query, query_parameters )
-        self.connection.commit()
 
-    def get_user_movie_info(self, user:str, movie_name:str):
-        rating = self.get_user_movies_ratings(user, movie_name)
-        description = self.get_movie_description(movie_name)
-        director = self.get_movie_director(movie_name)
-        categories = self.get_movie_categories(movie_name)
-        return Movie(movie_name, description, categories, rating, director)
-        
+    def get_last_movies_with_average(self, limit=5):
+        self.cursor.execute('''
+            SELECT m.name, m.description, m.director, r.rating
+            FROM ratings r
+            JOIN movies m ON m.name = r.movie_name
+            ORDER BY rowid DESC
+            LIMIT ?
+        ''', (limit,))
+        rows = self.cursor.fetchall()
+        filmes = []
+        soma = 0
+        for row in rows:
+            name, description, director, rating = row
+            self.cursor.execute('SELECT category_name FROM movie_categories WHERE movie_name = ?', (name,))
+            categories = [r[0] for r in self.cursor.fetchall()]
+            filmes.append({
+                'title': name,
+                'description': description,
+                'director': director,
+                'categories': categories,
+                'rating': rating
+            })
+            soma += rating
+        media = soma / len(filmes) if filmes else 0
+        return media, filmes
 
+    def get_top_categories(self, limit=5):
+        self.cursor.execute('''
+            SELECT category_name, COUNT(*) as total
+            FROM movie_categories
+            GROUP BY category_name
+            ORDER BY total DESC
+            LIMIT ?
+        ''', (limit,))
+        return self.cursor.fetchall()
 
     def close(self):
         self.connection.close()
-
-
-
