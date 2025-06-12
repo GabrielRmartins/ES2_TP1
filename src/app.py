@@ -1,128 +1,106 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
-import webbrowser
+from tkinter import messagebox
 from database_manager import DatabaseManager
 from movie import Movie
 
 class MovieApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Meu Catálogo de Filmes")
+        self.root.title("Meu Gerenciador de Filmes")
+        self.root.geometry("500x600")
+
         self.db = DatabaseManager()
-        self._setup_ui()
 
-    def _setup_ui(self):
-        self.root.option_add("*Font", ("Segoe UI", 10))
+        # Título
+        self.title_label = tk.Label(root, text="Cadastrar Filme", font=("Arial", 16, "bold"))
+        self.title_label.pack(pady=10)
 
-        title = ttk.Label(self.root, text="Meu Catálogo de Filmes", font=("Segoe UI", 16, "bold"))
-        title.grid(row=0, column=0, pady=(10, 5))
+        # Entradas do formulário
+        self.name_entry = self._create_entry("Nome do Filme:")
+        self.desc_entry = self._create_entry("Descrição:")
+        self.dir_entry = self._create_entry("Diretor:")
+        self.cat_entry = self._create_entry("Categorias (separadas por vírgula):")
+        self.rating_entry = self._create_entry("Nota (0 a 10):")
 
-        form_frame = ttk.LabelFrame(self.root, text="Adicionar Filme", padding=15)
-        form_frame.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
+        self.add_button = tk.Button(root, text="Adicionar Filme", command=self.add_movie, bg="blue", fg="white")
+        self.add_button.pack(pady=10)
 
-        labels = ["Nome do Filme:", "Descrição:", "Diretor:", "Categorias (separadas por vírgula):", "Nota (0 a 10):"]
-        self.entries = []
+        # Botão para visualizar perfil
+        self.profile_button = tk.Button(root, text="Ver Perfil", command=self.generate_profile, bg="green", fg="white")
+        self.profile_button.pack(pady=5)
 
-        for i, label_text in enumerate(labels):
-            ttk.Label(form_frame, text=label_text).grid(row=i, column=0, sticky="e", padx=5, pady=4)
-            entry = ttk.Entry(form_frame, width=40)
-            entry.grid(row=i, column=1, sticky="w", pady=4)
-            self.entries.append(entry)
+        # Lista de filmes
+        self.movies_listbox = tk.Listbox(root, width=60, height=15)
+        self.movies_listbox.pack(pady=10)
 
-        self.name_entry, self.desc_entry, self.dir_entry, self.cat_entry, self.rating_entry = self.entries
+        self.load_movies()
 
-        button_frame = ttk.Frame(form_frame)
-        button_frame.grid(row=len(labels), column=0, columnspan=2, pady=(10, 0))
-        ttk.Button(button_frame, text="Adicionar Filme", command=self.add_movie).grid(row=0, column=0, padx=5)
-        ttk.Button(button_frame, text="Carregar Filmes", command=self.load_movies).grid(row=0, column=1, padx=5)
-        ttk.Button(button_frame, text="Ver Perfil", command=self.ver_perfil).grid(row=0, column=2, padx=5)
-
-        table_frame = ttk.LabelFrame(self.root, text="Filmes Cadastrados", padding=10)
-        table_frame.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
-
-        self.tree = ttk.Treeview(table_frame, columns=("Nome", "Nota"), show="headings", height=8)
-        self.tree.heading("Nome", text="Nome")
-        self.tree.heading("Nota", text="Nota")
-        self.tree.column("Nome", anchor="w", width=280)
-        self.tree.column("Nota", anchor="center", width=60)
-        self.tree.grid(row=0, column=0, sticky="nsew")
-
-        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscroll=scrollbar.set)
-        scrollbar.grid(row=0, column=1, sticky="ns")
-
-        self.status_label = ttk.Label(self.root, text="", foreground="green")
-        self.status_label.grid(row=3, column=0, pady=(0, 15))
-
-        self.root.grid_rowconfigure(2, weight=1)
-        self.root.grid_columnconfigure(0, weight=1)
-
-    def load_movies(self):
-        try:
-            movies = self.db.get_all_movies_with_ratings()
-            self.tree.delete(*self.tree.get_children())
-            for m in movies:
-                self.tree.insert("", "end", values=(m.get_name(), m.get_rating()))
-            self.status_label.config(text=f"{len(movies)} filme(s) carregado(s)")
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao carregar filmes: {e}")
+    def _create_entry(self, label_text):
+        label = tk.Label(self.root, text=label_text)
+        label.pack()
+        entry = tk.Entry(self.root, width=50)
+        entry.pack()
+        return entry
 
     def add_movie(self):
         name = self.name_entry.get()
         desc = self.desc_entry.get()
         director = self.dir_entry.get()
-        categories = [c.strip() for c in self.cat_entry.get().split(",")]
+        categories = [c.strip() for c in self.cat_entry.get().split(",") if c.strip()]
+
         try:
             rating = float(self.rating_entry.get())
         except ValueError:
             messagebox.showerror("Erro", "Nota inválida.")
             return
 
-        if not name:
-            messagebox.showwarning("Aviso", "Preencha o nome do filme.")
+        if not (name and rating >= 0 and rating <= 10):
+            messagebox.showwarning("Aviso", "Preencha todos os campos corretamente.")
             return
 
         movie = Movie(name, desc, categories, rating, director)
+
         try:
             self.db.add_movie(movie)
-            self.status_label.config(text=f"Filme '{name}' adicionado com sucesso!", foreground="green")
+            messagebox.showinfo("Sucesso", f"Filme '{name}' adicionado!")
             self.load_movies()
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao adicionar filme: {e}")
 
-    def ver_perfil(self):
+    def load_movies(self):
+        self.movies_listbox.delete(0, tk.END)
         try:
-            media, filmes = self.db.get_last_movies_with_average(limit=5)
-            categorias = self.db.get_top_categories(limit=5)
-
-            with open("templates/profile.html", "r", encoding="utf-8") as f:
-                html_template = f.read()
-
-            html_resultado = html_template.replace("{{usuario}}", "Você")
-            html_resultado = html_resultado.replace("{{n}}", str(len(filmes)))
-            html_resultado = html_resultado.replace("{{media}}", f"{media:.2f}")
-
-            filmes_html = ""
-            for i, m in enumerate(filmes, 1):
-                filmes_html += f"""
-                <tr>
-                    <td>{i}</td>
-                    <td>{m['title']}</td>
-                    <td>{m['director']}</td>
-                    <td>{', '.join(m['categories'])}</td>
-                    <td>{m['rating']}</td>
-                </tr>"""
-
-            html_resultado = html_resultado.replace("{{filmes}}", filmes_html)
-            html_resultado = html_resultado.replace("{{categorias_labels}}", str([c[0] for c in categorias]))
-            html_resultado = html_resultado.replace("{{categorias_counts}}", str([c[1] for c in categorias]))
-
-            with open("perfil_usuario.html", "w", encoding="utf-8") as f:
-                f.write(html_resultado)
-            webbrowser.open("perfil_usuario.html")
-
+            movies = self.db.get_all_movies_with_ratings()
+            for m in movies:
+                self.movies_listbox.insert(tk.END, f"{m.get_name()} - Nota: {m.get_rating()}")
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao gerar perfil: {e}")
+            messagebox.showerror("Erro", f"Erro ao carregar filmes: {e}")
+
+    def generate_profile(self):
+        media, filmes = self.db.get_last_movies_with_average(5)
+        categorias_raw = self.db.get_top_categories(5)
+
+        categorias_labels = [x[0] for x in categorias_raw]
+        categorias_counts = [x[1] for x in categorias_raw]
+
+        filmes_html = ""
+        for idx, f in enumerate(filmes, 1):
+            filmes_html += f"<tr><td>{idx}</td><td>{f['title']}</td><td>{f['director']}</td><td>{', '.join(f['categories'])}</td><td>{f['rating']}</td></tr>"
+
+        with open("templates/profile.html", "r", encoding="utf-8") as file:
+            html = file.read()
+
+        html = html.replace("{{usuario}}", "Você")
+        html = html.replace("{{n}}", str(len(filmes)))
+        html = html.replace("{{media}}", f"{media:.2f}")
+        html = html.replace("{{categorias_labels}}", str(categorias_labels))
+        html = html.replace("{{categorias_counts}}", str(categorias_counts))
+        html = html.replace("{{filmes}}", filmes_html)
+
+        with open("profile_rendered.html", "w", encoding="utf-8") as out:
+            out.write(html)
+
+        messagebox.showinfo("Perfil Gerado", "Arquivo 'profile_rendered.html' criado com sucesso!")
 
 if __name__ == "__main__":
     root = tk.Tk()
